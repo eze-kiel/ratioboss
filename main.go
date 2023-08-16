@@ -1,22 +1,3 @@
-// Ratioboss simulates data download and upload in order to boost your ratio
-// on BitTorrent trackers. No data actually flows between you and other peers,
-// thus data usage is marginal. Be aware that aside from the transfer speeds
-// being fuzzed, no attempts are made at avoiding detection;
-// it is therefore recommended to point this tool at popular torrents.
-//
-// Here is an example of a ratioboss session set up to download a file
-// at 5 MiB/s and upload at 2 MiB/s:
-//
-// 	$ ratioboss -down 5M -up 2M foo.torrent
-// 	9:31PM Torrent name: Foo
-// 	9:31PM Torrent size: 8.80 GiB
-// 	9:31PM Announce: 0.00 B downloaded, 0.00 B uploaded
-// 	9:31PM Next announce: 10:31PM
-// 	10:31PM Announce: 8.80 GiB downloaded, 2.64 GiB uploaded
-// 	10:31PM Next announce: 11:31PM
-// 	^C10:45PM Quitting...
-// 	10:46PM Announce: 8.80 GiB downloaded, 4.83 GiB uploaded
-//
 package main
 
 import (
@@ -49,11 +30,11 @@ var (
 	down, up        byt.Size
 	interval        <-chan time.Time
 	lastResp        time.Time
+	nextInterval    = 10 * time.Minute
 )
 
 func init() {
 	flag.Usage = usage
-	flag.Var(&downSpeed, "down", "download speed")
 	flag.Var(&upSpeed, "up", "upload speed")
 
 	log.SetFlags(0)
@@ -64,7 +45,7 @@ func init() {
 
 func main() {
 	flag.Parse()
-	if downSpeed == 0 || upSpeed == 0 || flag.NArg() != 1 {
+	if upSpeed == 0 || flag.NArg() != 1 {
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -132,7 +113,7 @@ func announce(event tracker.AnnounceEvent) {
 		Event:      event,
 		NumWant:    -1,
 	}
-	resp, err := tracker.Announce(announceURL, req)
+	_, err := tracker.Announce(announceURL, req)
 	lastResp = time.Now()
 	if err != nil {
 		if event == tracker.Stopped {
@@ -149,7 +130,6 @@ func announce(event tracker.AnnounceEvent) {
 		interval = nil
 		return
 	}
-	nextInterval := time.Duration(resp.Interval) * time.Second
 	log.Println("Next announce:", time.Now().Add(nextInterval).Format(time.Kitchen))
 	interval = time.After(nextInterval)
 }
